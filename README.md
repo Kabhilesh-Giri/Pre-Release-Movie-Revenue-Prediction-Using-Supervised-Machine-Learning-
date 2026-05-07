@@ -18,8 +18,8 @@ The project is intentionally focused on the business question: given information
 
 The raw source files `Dataset/movies.csv` and `Dataset/TMDB_movie_dataset_v11.csv` were used locally, but they are not committed because they are approximately 334 MB and 574 MB, which is beyond GitHub's normal per-file limit. The committed dataset is the smaller supervised project dataset created from them.
 
-`Dataset/movies.csv` - https://www.kaggle.com/datasets/akshaypawar7/millions-of-movies/data
-`Dataset/TMDB_movie_dataset_v11.csv` - https://www.kaggle.com/code/ismatkhan121/tmdb-data-analysis
+#### `Dataset/movies.csv` - https://www.kaggle.com/datasets/akshaypawar7/millions-of-movies/data
+#### `Dataset/TMDB_movie_dataset_v11.csv` - https://www.kaggle.com/code/ismatkhan121/tmdb-data-analysis
 
 ## Problem Formulation
 
