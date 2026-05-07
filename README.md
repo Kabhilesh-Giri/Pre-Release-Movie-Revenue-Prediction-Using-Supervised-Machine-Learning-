@@ -1,4 +1,4 @@
-# Movie Revenue Prediction ML
+# Pre-Release Movie Revenue Prediction Using Supervised Machine Learning 
 
 This repository documents a supervised machine learning project for estimating a movie's box-office revenue before a project is greenlit. The workflow combines two large movie datasets, filters them into a clean supervised regression table, engineers director-facing movie features, tunes multiple model families on a 24-core CPU environment, and finishes with a deployment-style prediction cell for entering a future movie concept and receiving an estimated revenue.
 
