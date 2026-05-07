@@ -1,101 +1,98 @@
-# Movie Revenue Prediction Before Production
+# Movie Revenue Prediction ML
 
-Final machine learning project by Yohanan Ben-Gad and Kabhilesh Giri.
+This repository documents a supervised machine learning project for estimating a movie's box-office revenue before a project is greenlit. The workflow combines two large movie datasets, filters them into a clean supervised regression table, engineers director-facing movie features, tunes multiple model families on a 24-core CPU environment, and finishes with a deployment-style prediction cell for entering a future movie concept and receiving an estimated revenue.
 
-This project predicts movie box office revenue during the development stage, before post-release signals such as ratings, reviews, or audience popularity are available. The work combines multiple Kaggle movie datasets, creates a custom modeling dataset, enriches it with actor popularity and MPAA rating features, engineers numeric/categorical/text features, and compares tuned machine learning models.
+The project is intentionally focused on the business question: given information a director, producer, or studio could know before release, what revenue range should they expect?
 
-The final writeup and presentation are included:
+## Final Artifacts
 
-- `FinalProjectReport.pdf`
-- `Presentation.pdf`
+| Artifact | Purpose |
+| --- | --- |
+| `Dataset/comparison_outputs/Movies-Dataset.csv` | Combined and cleaned supervised dataset used as the project base table. |
+| `data_integration_and_filtering.ipynb` | Combines the two source datasets, resolves overlapping movies, filters invalid revenue/budget rows, and creates `Movies-Dataset.csv`. |
+| `01_movies_eda_cleaning_feature_prep.ipynb` | Explores the cleaned movie data, missing values, feature distributions, correlations, PCA, and early feature preparation choices. |
+| `FullNotebook.ipynb` | End-to-end workflow: ML-ready transformation, feature encoding, final model fit, diagnostics, and the user-input revenue prediction cell. |
+| `HyperParameterTuning_ModelFinalization.ipynb` | HPC/24-core hyperparameter search notebook used to compare model families and lock the final modeling direction. |
+| `FinalProjectReport.pdf` | Full written report. |
+| `Presentation.pdf` | Results presentation. |
 
-## Project Goal
+The raw source files `Dataset/movies.csv` and `Dataset/TMDB_movie_dataset_v11.csv` were used locally, but they are not committed because they are approximately 334 MB and 574 MB, which is beyond GitHub's normal per-file limit. The committed dataset is the smaller supervised project dataset created from them.
 
-Predict expected movie revenue from pre-production or early development information such as budget, runtime, release date, genre, production companies, production countries, language, MPAA rating, cast popularity, keywords, tagline, overview, and title.
+## Problem Formulation
 
-The project deliberately excludes variables such as movie popularity, ratings, votes, and reviews because those are not realistically known before release and would make the forecasting task less useful for greenlighting decisions.
+The target variable is movie revenue. This is a supervised regression problem because every training row contains known movie features and a known historical revenue value.
 
-## Data Pipeline
+The project avoids relying on post-release information for the final modeling workflow. Popularity, vote counts, ratings, reviews, and other audience-response variables are useful for analysis, but they are not dependable before release. The model is therefore framed around information that can exist before or during greenlight evaluation:
 
-The project starts with two Kaggle datasets, merges overlapping movies, removes rows without usable revenue and budget, filters older/outlier records, and creates the ML-ready dataset used for modeling.
+- budget and runtime
+- production country, studio, genre, and spoken language
+- original language and MPAA rating
+- actor popularity features from TMDB enrichment
+- keywords, tagline, and overview text
 
-Key dataset stages:
+## Data Story
 
-| Stage | Rows | Columns | File |
-| --- | ---: | ---: | --- |
-| Combined merged dataset | 16,441 | 41 | `Dataset/comparison_outputs/Movies-Dataset.csv` |
-| Cleaned ML-ready dataset | 3,856 | 22 | `Dataset/comparison_outputs/Movies-Dataset-no-missing-2000-2026-ML-Ready.csv` |
-| Encoded modeling dataset | 3,856 | 135 | `Dataset/comparison_outputs/Movies-Dataset-no-missing-2000-2026-ML-Ready-encoded.csv` |
+Two movie datasets were merged using normalized title and release-date keys. For movies appearing in both sources, the notebooks compare overlapping columns, preserve useful fields, and report mismatches before creating the final combined table.
 
-The two raw Kaggle CSVs are not tracked because they exceed GitHub's 100 MB file limit. See `DATA_SOURCES.md` for expected paths and setup notes.
+The integration notebook starts from 1,349,515 merged records. Most raw rows do not contain usable supervised targets: 1,326,310 rows have revenue equal to zero and 1,275,849 rows have budget equal to zero. After filtering for usable positive revenue and budget, the project keeps 16,441 movies in `Movies-Dataset.csv`.
+
+The full modeling workflow then removes one invalid negative-revenue row, clips extreme budget and revenue values at the 99.5th percentile, applies a log transform, restricts the modeling period to 2000-2026, and keeps complete cases. This produces 3,856 final modeling rows and 135 encoded columns, with 132 columns used as model features after dropping title, release date, and target revenue.
 
 ## Feature Engineering
 
-Final feature processing included:
+The final feature table contains 35 continuous features and 97 binary encoded features.
 
-- Numeric scaling for budget, runtime, release year, and actor popularity.
-- Multi-label binarization for genres, production companies, production countries, and spoken languages.
-- One-hot encoding for original language and MPAA rating.
-- CountVectorizer features for keywords.
-- TF-IDF features for title, tagline, and overview.
-- TMDB enrichment for actor popularity and MPAA rating.
-- Experiments with Lasso feature selection and text clustering before settling on TF-IDF and CountVectorizer.
+Important transformations include:
 
-## Modeling
+- budget and revenue capped at the 99.5th percentile before log transformation
+- budget cap: $205,000,000
+- revenue cap: $1,000,000,000
+- multi-label encoding for production countries, studios, genres, and spoken languages
+- one-hot encoding for original language and MPAA rating
+- keyword, tagline, and overview text signals converted into model features
+- missing actor popularity filled conservatively during preprocessing
 
-The final tuning stage used 5-fold cross validation across 11 model configurations. The report notes that the larger grid search ran on Northeastern's CPU cluster with 26 cores and 42 GB RAM and took about 14 to 16 hours.
+The final Elastic Net diagnostic table identifies budget as the strongest positive coefficient, followed by number of keywords, sequel-related keywords, runtime, and actor popularity signals. R-rated movies and drama genre indicators had negative coefficients in that fitted linear model.
 
-Top report results:
+## Hyperparameter Tuning
 
-| Model | Candidates | CV Fits | Train R2 | Test R2 |
+The exhaustive tuning notebook was run on a 24-core CPU environment. The run used:
+
+- 5-fold cross-validation
+- 80/20 train-test split
+- 5 parallel CV jobs
+- 5 estimator threads per model
+- 8 model variants across Ridge Regression, Elastic Net, KNN, and Random Forest
+- with-Lasso and without-Lasso feature-selection modes
+- 1,224 searched candidates and 6,120 planned CV fits
+
+Best tuning result from `HyperParameterTuning_ModelFinalization.ipynb`:
+
+| Model | Test RMSE | Test MAE | Test R2 | Notes |
+| --- | ---: | ---: | ---: | --- |
+| KNN without Lasso | $116,845,939 | $63,968,001 | 0.595 | Best pure test-score result in the HPC search. |
+| Random Forest without Lasso | $118,192,075 | $64,206,987 | 0.585 | Strong tree-based benchmark. |
+| Elastic Net without Lasso | $119,669,261 | $74,229,794 | 0.575 | Interpretable linear benchmark. |
+| Ridge without Lasso | $119,697,648 | $74,262,349 | 0.574 | Similar to Elastic Net. |
+| Elastic Net with Lasso Sweep | $121,214,082 | $73,399,814 | 0.564 | Lightweight model family used for the deployment-style notebook flow. |
+
+The tuning result shows that non-linear neighborhood/tree methods scored slightly better, while linear regularized models remained competitive and easier to explain.
+
+## Final Workflow Result
+
+`FullNotebook.ipynb` locks an `Elastic Net | With Lasso Sweep` pipeline for the final explainable workflow and demonstrates how a future movie can be entered as a dictionary of planned production values.
+
+Final notebook metrics after inverse-transforming predictions back to capped revenue scale:
+
+| Split | RMSE | MAE | MedianAE | R2 |
 | --- | ---: | ---: | ---: | ---: |
-| XGBoost, no Lasso | 96 | 480 | 0.985 | 0.595 |
-| KNN, no Lasso | 24 | 120 | 1.000 | 0.594 |
-| Random Forest, no Lasso | 54 | 270 | 0.925 | 0.585 |
-| Linear Regression | 720 | 3,600 | 0.917 | 0.583 |
-| Elastic Net, no Lasso | 18 | 90 | 0.616 | 0.574 |
-| Ridge, no Lasso | 6 | 30 | 0.616 | 0.574 |
-| CatBoost | 20 | 100 | 0.618 | 0.563 |
+| Train | $140,430,021 | $68,843,800 | $22,921,733 | 0.456 |
+| Test | $131,992,591 | $67,575,349 | $23,725,675 | 0.421 |
 
-The strongest model in the report was XGBoost without Lasso, with a test R2 of 0.595. The final discussion also identifies budget, runtime, actor popularity, and franchise/studio/title signals as important predictors.
+The example deployment cell uses a planned action/adventure/science-fiction movie with a $120M budget, PG-13 rating, major studio signals, cast popularity values, keywords, tagline, and overview. The trained pipeline returns an estimated revenue of **$153,521,637** for that sample input.
 
-## Repository Layout
+## Project Narrative
 
-```text
-.
-├── data_integration_and_filtering.ipynb
-├── 01_movies_eda_cleaning_feature_prep.ipynb
-├── 02_movies_feature_processing_modeling1.ipynb
-├── 02_movies_feature_processing_modeling2.ipynb
-├── HyperParameterTuning_ModelFinalization.ipynb
-├── FullNotebook.ipynb
-├── tmdb_enrichment.py
-├── Dataset/
-│   └── comparison_outputs/
-├── best_model_checkpoints/
-├── FinalProjectReport.pdf
-└── Presentation.pdf
-```
-
-## Reproducing
-
-Install dependencies:
-
-```powershell
-pip install -r requirements.txt
-```
-
-For TMDB enrichment, set:
-
-```powershell
-$env:TMDB_API_KEY="your_tmdb_api_key"
-```
-
-Then run the notebooks in this order:
-
-1. `data_integration_and_filtering.ipynb`
-2. `01_movies_eda_cleaning_feature_prep.ipynb`
-3. `FullNotebook.ipynb` or the `02_*` modeling notebooks
-4. `HyperParameterTuning_ModelFinalization.ipynb`
-
-The tracked derived datasets allow the modeling workflow to be inspected without re-downloading the two oversized raw CSV files.
+1. Dataset combining and cleaning: the project merges two large movie sources, keeps only movies with usable budget and revenue, enriches selected people/rating fields, and creates the supervised project dataset.
+2. Feature formulation and HPC tuning: the cleaned data is transformed into numeric, binary, categorical, and text-derived model features, then tuned across model families on a 24-core CPU setup.
+3. Deployment model: the final workflow notebook provides a ready prediction pattern where a future movie concept can be entered and passed through the trained pipeline to estimate revenue before a greenlight decision.
