@@ -1,0 +1,13 @@
+altair
+catboost
+ipython
+joblib
+jupyter
+lightgbm
+matplotlib
+numpy
+pandas
+requests
+scikit-learn
+seaborn
+xgboost

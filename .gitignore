@@ -1,0 +1,26 @@
+# Raw Kaggle source files exceed GitHub's 100 MB file limit.
+/Dataset/movies.csv
+/Dataset/TMDB_movie_dataset_v11.csv
+
+# Python and notebook runtime artifacts
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+
+# Local environments and secrets
+.env
+.env.*
+!.env.example
+.venv/
+venv/
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Local run logs and transient tuning progress
+*.log
+Dataset/**/live_search_status.csv
+Dataset/**/*candidate_progress.csv
